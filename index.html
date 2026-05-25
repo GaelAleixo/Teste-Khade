@@ -3,435 +3,424 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GeoHunter AR</title>
-    <!-- Tailwind CSS para estilização rápida e responsiva -->
+    <title>Pattern Hunter GO</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Ícones -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <style>
-        body, html {
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+        
+        body {
             margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
             overflow: hidden;
             background-color: #000;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
         }
 
-        /* Container do vídeo e canvas para manter a proporção da câmera */
         #camera-container {
             position: relative;
             width: 100vw;
             height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
         }
 
+        /* O vídeo real fica escondido, usaremos o canvas para exibir e processar */
         video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
+            display: none;
         }
 
-        canvas {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 2;
-        }
-
-        /* Interface HUD (Heads Up Display) sobreposta */
-        #hud {
+        /* Canvas de exibição principal */
+        #display-canvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 10;
-            pointer-events: none; /* Deixa os cliques passarem para os botões específicos */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 20px;
+            object-fit: cover;
         }
 
-        /* Botão de Captura com pulso animado quando habilitado */
-        .btn-capture {
-            pointer-events: auto;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-capture.ready {
-            background-color: #10b981; /* bg-emerald-500 */
-            box-shadow: 0 0 20px #10b981;
-            transform: scale(1.1);
-            animation: pulse-green 1.5s infinite;
-        }
-
-        .btn-capture.disabled {
-            background-color: #6b7280; /* bg-gray-500 */
-            opacity: 0.7;
-        }
-
-        @keyframes pulse-green {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-
-        /* Tela de loading imersiva */
-        #loading-screen {
+        /* Animação de Scan */
+        .scan-line {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
-            z-index: 50;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
+            width: 100%;
+            height: 4px;
+            background: rgba(0, 255, 128, 0.5);
+            box-shadow: 0 0 10px rgba(0, 255, 128, 1);
+            animation: scan 3s linear infinite;
+            z-index: 10;
         }
 
-        .loader-spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #38bdf8;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
         }
 
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hud-text {
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        }
 
-        /* Animação de sucesso na captura */
+        /* Efeito de flash quando captura */
         #flash {
             position: absolute;
-            top:0; left:0; width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: white;
-            z-index: 100;
+            z-index: 50;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.2s ease-out;
         }
     </style>
 </head>
-<body>
+<body class="text-white">
 
-    <!-- Tela de Carregamento (OpenCV é um pouco pesado) -->
-    <div id="loading-screen">
-        <div class="loader-spinner mb-4"></div>
-        <h1 class="text-3xl font-bold mb-2 tracking-wider">GeoHunter AR</h1>
-        <p class="text-sky-300 text-sm">Carregando IA Visual e Câmera...</p>
-        <p class="text-xs text-gray-400 mt-8 max-w-xs text-center">Permita o acesso à câmera quando solicitado para começar a caçada.</p>
-    </div>
-
-    <!-- Container da Câmera e Canvas AR -->
     <div id="camera-container">
-        <!-- O vídeo fica oculto visualmente, serve apenas como fonte de dados -->
-        <video id="videoElement" autoplay playsinline></video>
-        <!-- O canvas é onde desenhamos o frame do vídeo + os gráficos AR -->
-        <canvas id="canvasOutput"></canvas>
-    </div>
+        <!-- Elementos de Mídia -->
+        <video id="video" autoplay playsinline></video>
+        <canvas id="display-canvas"></canvas>
+        <canvas id="processing-canvas" style="display:none;"></canvas> <!-- Usado para análise rápida de pixels -->
+        
+        <div id="scan-line" class="scan-line"></div>
+        <div id="flash"></div>
 
-    <!-- Efeito visual de captura -->
-    <div id="flash"></div>
+        <!-- HUD Superior -->
+        <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-20 bg-gradient-to-b from-black/80 to-transparent">
+            <div>
+                <h1 class="text-xl font-bold text-green-400 hud-text tracking-wider">PATTERN HUNTER</h1>
+                <p id="status-text" class="text-xs text-yellow-300 hud-text">Iniciando Câmera...</p>
+            </div>
+            <div class="w-12 h-12 bg-green-500/20 border-2 border-green-400 rounded-full flex items-center justify-center animate-pulse">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </div>
+        </div>
 
-    <!-- HUD do Jogo -->
-    <div id="hud" class="hidden">
-        <!-- Barra Superior: Missão e Score -->
-        <div class="flex justify-between items-start">
-            <!-- Seletor de Missão (Alvo) -->
-            <div class="bg-slate-900/80 backdrop-blur-md text-white p-2 rounded-2xl border border-slate-700 shadow-lg pointer-events-auto">
-                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1 text-center">Escolher Alvo</p>
-                <div class="flex items-center gap-2">
-                    <button id="btn-triangle" onclick="selectMission('triangle')" class="mission-btn p-2 rounded-xl border-2 border-sky-400 bg-slate-700 transition-all flex justify-center items-center w-12 h-12 shadow-inner">
-                        <i class="fa-solid fa-caret-up text-sky-400 text-2xl"></i>
-                    </button>
-                    <button id="btn-square" onclick="selectMission('square')" class="mission-btn p-2 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-slate-700 transition-all flex justify-center items-center w-12 h-12">
-                        <i class="fa-solid fa-square text-sky-400 text-xl"></i>
-                    </button>
-                    <button id="btn-circle" onclick="selectMission('circle')" class="mission-btn p-2 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-slate-700 transition-all flex justify-center items-center w-12 h-12">
-                        <i class="fa-solid fa-circle text-sky-400 text-xl"></i>
-                    </button>
+        <!-- Alerta Central de Captura -->
+        <div id="capture-alert" class="absolute inset-0 flex items-center justify-center z-30 hidden">
+            <div class="bg-black/80 border-4 border-green-500 p-6 rounded-xl text-center transform scale-110 transition-transform duration-300">
+                <h2 class="text-3xl font-black text-green-400 mb-2">CAPTURADO!</h2>
+                <p id="capture-type" class="text-lg text-white font-bold">Padrão de 4 Pontos</p>
+                <div class="mt-4 text-sm text-gray-400">Dados salvos no inventário</div>
+            </div>
+        </div>
+
+        <!-- Inventário (Pokedex de Padrões) -->
+        <div class="absolute bottom-0 left-0 w-full p-6 z-20 bg-gradient-to-t from-black via-black/80 to-transparent pb-10">
+            <h3 class="text-xs text-gray-400 mb-3 text-center uppercase tracking-widest">Seu Inventário</h3>
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div class="bg-blue-900/40 border border-blue-500 p-3 rounded-lg backdrop-blur-sm">
+                    <div class="text-blue-400 text-sm mb-1 font-bold">3 PONTOS</div>
+                    <div id="count-3" class="text-2xl font-black">0</div>
+                </div>
+                <div class="bg-purple-900/40 border border-purple-500 p-3 rounded-lg backdrop-blur-sm">
+                    <div class="text-purple-400 text-sm mb-1 font-bold">4 PONTOS</div>
+                    <div id="count-4" class="text-2xl font-black">0</div>
+                </div>
+                <div class="bg-pink-900/40 border border-pink-500 p-3 rounded-lg backdrop-blur-sm">
+                    <div class="text-pink-400 text-sm mb-1 font-bold">6 PONTOS</div>
+                    <div id="count-6" class="text-2xl font-black">0</div>
                 </div>
             </div>
-
-            <div class="bg-slate-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-slate-700 shadow-lg flex items-center gap-2 pointer-events-auto">
-                Alvo Localizado!
-            </div>
-        </div>
-
-        <!-- Barra Inferior: Botão de Captura -->
-        <div class="flex justify-center pb-6">
-            <button id="capture-btn" class="btn-capture disabled w-20 h-20 rounded-full text-white flex items-center justify-center text-3xl border-4 border-white/20">
-                <i class="fa-solid fa-camera"></i>
-            </button>
         </div>
     </div>
 
-    <!-- Carregando OpenCV.js de forma assíncrona -->
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
-
     <script>
-        // --- Estado do Jogo ---
-        const shapes = [
-            { name: "Triângulo", id: "triangle", icon: "fa-caret-up" },
-            { name: "Quadrado", id: "square", icon: "fa-square" },
-            { name: "Círculo", id: "circle", icon: "fa-circle" }
-        ];
-        
-        let currentMission = null;
-        let score = 0;
-        let isTargetInSight = false;
-        let isProcessing = false;
-        
-        // Elementos DOM
-        const video = document.getElementById('videoElement');
-        const canvas = document.getElementById('canvasOutput');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const captureBtn = document.getElementById('capture-btn');
-        const targetFeedback = document.getElementById('target-feedback');
-        const flash = document.getElementById('flash');
+        // Configurações e Estado da Aplicação
+        const STATE = {
+            inventory: { 3: 0, 4: 0, 6: 0 },
+            isCapturing: false,
+            stableFrames: 0,
+            targetPattern: null
+        };
 
-        // Referências do OpenCV (serão inicializadas depois)
-        let srcMat, dstMat, cap;
-        const FPS = 30; // Limitar processamento para economizar bateria
+        const CONFIG = {
+            processWidth: 160,  // Resolução reduzida para processamento rápido (Performance!)
+            processHeight: 120,
+            framesToCapture: 15, // Quantos frames seguidos o padrão deve ser visto para capturar
+            cooldownMs: 3000     // Tempo de espera entre capturas
+        };
 
-        // --- Inicialização ---
+        // Elementos da DOM
+        const video = document.getElementById('video');
+        const displayCanvas = document.getElementById('display-canvas');
+        const displayCtx = displayCanvas.getContext('2d');
+        const processCanvas = document.getElementById('processing-canvas');
+        const processCtx = processCanvas.getContext('2d');
+        const statusText = document.getElementById('status-text');
 
-        // Função chamada quando o script do OpenCV é carregado via CDN
-        function onOpenCvReady() {
-            // Garante que o WebAssembly interno do OpenCV esteja pronto
-            cv['onRuntimeInitialized'] = () => {
-                console.log('OpenCV.js is ready.');
-                startCamera();
-            };
-        }
+        // Inicializa a resolução interna de processamento
+        processCanvas.width = CONFIG.processWidth;
+        processCanvas.height = CONFIG.processHeight;
 
+        // Função de Inicialização da Câmera (Back camera)
         async function startCamera() {
             try {
-                // Solicita câmera traseira
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 640 }, // Resolução menor melhora a performance de IA mobile
-                        height: { ideal: 480 } 
-                    }, 
-                    audio: false 
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment', // Usa a câmera traseira do M52
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
                 });
-                
                 video.srcObject = stream;
                 
-                // Quando o vídeo começar a tocar, inicializa os Mats do OpenCV e o loop de jogo
-                video.addEventListener('loadeddata', () => {
-                    initGame();
-                });
-
+                video.onloadedmetadata = () => {
+                    video.play();
+                    resizeCanvas();
+                    window.addEventListener('resize', resizeCanvas);
+                    statusText.innerText = "Buscando Padrões...";
+                    statusText.className = "text-xs text-green-300 hud-text";
+                    requestAnimationFrame(gameLoop);
+                };
             } catch (err) {
-                console.error("Erro ao acessar câmera: ", err);
-                alert("Erro ao acessar a câmera. Por favor, permita o acesso nas configurações do navegador para jogar.");
+                console.error("Erro ao acessar a câmera:", err);
+                statusText.innerText = "Erro de Câmera. Dê permissão.";
+                statusText.className = "text-xs text-red-500 hud-text";
+                alert("Por favor, permita o acesso à câmera para usar o app.");
             }
         }
 
-        function initGame() {
-            // Ajusta o tamanho do canvas para o tamanho real do vídeo renderizado
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            // Inicializa matrizes do OpenCV
-            srcMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
-            dstMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC1);
-            cap = new cv.VideoCapture(video);
-
-            // Esconde tela de loading e mostra HUD
-            document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('hud').classList.remove('hidden');
-            document.getElementById('hud').classList.add('flex');
-
-            selectMission('triangle'); // Inicia com triângulo selecionado
-            
-            // Inicia o loop de processamento
-            isProcessing = true;
-            setTimeout(processVideo, 0);
+        // Ajusta o canvas de exibição para preencher a tela
+        function resizeCanvas() {
+            displayCanvas.width = window.innerWidth;
+            displayCanvas.height = window.innerHeight;
         }
 
-        // --- Lógica do Jogo ---
+        // Algoritmo Customizado de Visão Computacional
+        function detectBlueDots(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            const dots = [];
+            const thresholdDistance = 25; // Distância máx para considerar pixels como o mesmo ponto
 
-        function selectMission(shapeId) {
-            currentMission = shapes.find(s => s.id === shapeId);
-            
-            // Reseta o estilo visual de todos os botões de missão
-            document.querySelectorAll('.mission-btn').forEach(btn => {
-                btn.classList.remove('border-sky-400', 'bg-slate-700', 'shadow-inner');
-                btn.classList.add('border-transparent', 'bg-slate-800');
-            });
-            
-            // Destaca o botão recém selecionado
-            const activeBtn = document.getElementById(`btn-${shapeId}`);
-            if(activeBtn) {
-                activeBtn.classList.remove('border-transparent', 'bg-slate-800');
-                activeBtn.classList.add('border-sky-400', 'bg-slate-700', 'shadow-inner');
-            }
-            
-            // Zera o estado do botão de captura até ele achar a nova forma
-            updateCaptureState(false);
-        }
+            // Percorre os pixels pulando de 2 em 2 para máxima performance em mobiles
+            for (let y = 0; y < height; y += 2) {
+                for (let x = 0; x < width; x += 2) {
+                    const i = (y * width + x) * 4;
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
 
-        function updateCaptureState(ready) {
-            isTargetInSight = ready;
-            if (ready) {
-                captureBtn.classList.remove('disabled');
-                captureBtn.classList.add('ready');
-                targetFeedback.style.opacity = '1';
-            } else {
-                captureBtn.classList.add('disabled');
-                captureBtn.classList.remove('ready');
-                targetFeedback.style.opacity = '0';
-            }
-        }
-
-        captureBtn.addEventListener('click', () => {
-            if (isTargetInSight) {
-                // Sucesso na captura
-                score += 10;
-                document.getElementById('score-text').innerText = score;
-                
-                // Efeito de Flash
-                flash.style.opacity = '1';
-                setTimeout(() => { flash.style.opacity = '0'; }, 100);
-                
-                // Na versão manual, a missão continua a mesma após a captura, 
-                // apenas resetamos o estado visual do botão de captura
-                updateCaptureState(false);
-            }
-        });
-
-        // --- Motor de Visão Computacional ---
-
-        function processVideo() {
-            if (!isProcessing) return;
-
-            let begin = Date.now();
-
-            try {
-                // Lê o frame atual do vídeo para a matriz de origem
-                cap.read(srcMat);
-
-                // Variável para checar se achamos a forma da missão neste frame
-                let foundMissionShape = false;
-
-                // 1. Converte para Tons de Cinza
-                cv.cvtColor(srcMat, dstMat, cv.COLOR_RGBA2GRAY, 0);
-
-                // 2. Aplica Desfoque (Blur) para reduzir ruídos da câmera mobile
-                let ksize = new cv.Size(5, 5);
-                cv.GaussianBlur(dstMat, dstMat, ksize, 0, 0, cv.BORDER_DEFAULT);
-
-                // 3. Detecção de Bordas (Canny)
-                cv.Canny(dstMat, dstMat, 50, 150, 3, false);
-
-                // 4. Encontra Contornos
-                let contours = new cv.MatVector();
-                let hierarchy = new cv.Mat();
-                cv.findContours(dstMat, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-                // Prepara para desenhar no canvas (copiamos o frame original)
-                cv.imshow('canvasOutput', srcMat);
-
-                // 5. Analisa cada contorno encontrado
-                for (let i = 0; i < contours.size(); ++i) {
-                    let cnt = contours.get(i);
-                    let area = cv.contourArea(cnt);
-
-                    // Ignora contornos muito pequenos (ruído) ou muito grandes (borda da tela)
-                    if (area > 2000 && area < (canvas.width * canvas.height * 0.8)) {
+                    // Heurística para detecção de cor AZUL ESCURO (tinta de caneta/piloto)
+                    // Azul deve ser dominante em relação ao vermelho e verde.
+                    if (b > r + 20 && b > g + 20 && b > 40 && r < 180 && g < 180) {
                         
-                        let tmp = new cv.Mat();
-                        let perimeter = cv.arcLength(cnt, true);
+                        let addedToExisting = false;
                         
-                        // Aproxima o contorno a um polígono
-                        // O fator 0.04 define a precisão da aproximação geométrica
-                        cv.approxPolyDP(cnt, tmp, 0.04 * perimeter, true);
-                        
-                        let vertices = tmp.rows;
-                        let detectedShape = null;
-
-                        // Classificação baseada no número de vértices
-                        if (vertices === 3) {
-                            detectedShape = "triangle";
-                        } else if (vertices === 4) {
-                            // Poderíamos calcular o aspect ratio para diferenciar quadrado de retângulo
-                            detectedShape = "square"; 
-                        } else if (vertices > 7) {
-                            // Polígonos com muitos vértices se aproximam de um círculo
-                            // Idealmente checaríamos a circularidade: 4*pi*area / (perimeter^2)
-                            let circularity = (4 * Math.PI * area) / (perimeter * perimeter);
-                            if (circularity > 0.7) {
-                                detectedShape = "circle";
+                        // Tenta agrupar este pixel azul a um ponto (blob) já existente
+                        for (let dot of dots) {
+                            const cx = dot.sumX / dot.count;
+                            const cy = dot.sumY / dot.count;
+                            const dist = Math.hypot(cx - x, cy - y);
+                            
+                            if (dist < thresholdDistance) {
+                                dot.sumX += x;
+                                dot.sumY += y;
+                                dot.count++;
+                                dot.minX = Math.min(dot.minX, x);
+                                dot.maxX = Math.max(dot.maxX, x);
+                                dot.minY = Math.min(dot.minY, y);
+                                dot.maxY = Math.max(dot.maxY, y);
+                                addedToExisting = true;
+                                break;
                             }
                         }
 
-                        // Se identificamos uma forma válida, desenhamos o AR overlay
-                        if (detectedShape) {
-                            // Verifica se é a forma que estamos caçando
-                            let isMissionTarget = (currentMission && currentMission.id === detectedShape);
-                            if (isMissionTarget) foundMissionShape = true;
-
-                            // Define cor: Verde para alvo correto, Vermelho/Rosa para outros
-                            let color = isMissionTarget ? new cv.Scalar(16, 185, 129, 255) : new cv.Scalar(236, 72, 153, 255);
-                            
-                            // Desenha o contorno aproximado
-                            let polyArray = new cv.MatVector();
-                            polyArray.push_back(tmp);
-                            cv.drawContours(srcMat, polyArray, 0, color, 3, cv.LINE_8, hierarchy, 0);
-                            polyArray.delete();
-
-                            // Calcula o centro para colocar a label
-                            let rect = cv.boundingRect(cnt);
-                            let point = new cv.Point(rect.x, rect.y - 10);
-                            
-                            // Nome em português para display
-                            let displayName = shapes.find(s => s.id === detectedShape)?.name || "";
-                            cv.putText(srcMat, displayName, point, cv.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv.LINE_AA);
+                        // Se não encontrou grupo próximo, cria um novo
+                        if (!addedToExisting) {
+                            dots.push({
+                                sumX: x, sumY: y, count: 1,
+                                minX: x, maxX: x, minY: y, maxY: y
+                            });
                         }
-                        tmp.delete();
                     }
-                    cnt.delete();
                 }
-
-                contours.delete(); hierarchy.delete();
-
-                // Atualiza o frame com os desenhos no Canvas HTML
-                cv.imshow('canvasOutput', srcMat);
-
-                // Atualiza o estado da UI baseado no que vimos neste frame
-                if (foundMissionShape !== isTargetInSight) {
-                    updateCaptureState(foundMissionShape);
-                }
-
-            } catch (err) {
-                console.error("Erro no processamento do frame: ", err);
             }
 
-            // Agenda o próximo frame considerando o limite de FPS
-            let delay = 1000/FPS - (Date.now() - begin);
-            setTimeout(processVideo, delay > 0 ? delay : 0);
+            // Filtra pontos válidos (remove ruídos muito pequenos ou muito grandes)
+            // Transforma os dados em coordenadas simplificadas
+            return dots
+                .filter(d => d.count > 4 && d.count < 400) 
+                .map(d => ({
+                    x: d.sumX / d.count,
+                    y: d.sumY / d.count,
+                    radius: Math.max((d.maxX - d.minX), (d.maxY - d.minY)) / 2 + 2
+                }));
         }
 
-        // Limpeza quando a página for fechada
-        window.addEventListener('beforeunload', () => {
-            isProcessing = false;
-            if (srcMat) srcMat.delete();
-            if (dstMat) dstMat.delete();
-        });
+        // Agrupa os pontos encontrados baseados na proximidade para identificar padrões
+        function findPatterns(dots) {
+            if (dots.length < 3) return null;
 
+            // Agrupa todos os pontos que estão a uma distância razoável (fazem parte da mesma figura)
+            const maxGroupDistance = 80; // Distância máx entre pontos do mesmo padrão
+            let groups = [];
+
+            dots.forEach(dot => {
+                let added = false;
+                for (let group of groups) {
+                    // Verifica se o ponto está próximo de qualquer ponto do grupo
+                    for (let gDot of group) {
+                        if (Math.hypot(dot.x - gDot.x, dot.y - gDot.y) < maxGroupDistance) {
+                            group.push(dot);
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (added) break;
+                }
+                if (!added) groups.push([dot]);
+            });
+
+            // Procurar pelo primeiro grupo que tenha 3, 4 ou 6 pontos
+            for (let group of groups) {
+                if (group.length === 3 || group.length === 4 || group.length === 6) {
+                    return {
+                        type: group.length,
+                        dots: group
+                    };
+                }
+            }
+            return null;
+        }
+
+        // Loop principal do "Jogo"
+        function gameLoop() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                
+                // 1. Desenha o frame do vídeo na tela do usuário preenchendo tudo (estilo AR)
+                // Calcula escala para cortar/centralizar o vídeo (object-fit: cover logic)
+                const vRatio = video.videoWidth / video.videoHeight;
+                const cRatio = displayCanvas.width / displayCanvas.height;
+                let drawWidth, drawHeight, startX, startY;
+
+                if (vRatio > cRatio) {
+                    drawHeight = displayCanvas.height;
+                    drawWidth = drawHeight * vRatio;
+                    startX = (displayCanvas.width - drawWidth) / 2;
+                    startY = 0;
+                } else {
+                    drawWidth = displayCanvas.width;
+                    drawHeight = drawWidth / vRatio;
+                    startX = 0;
+                    startY = (displayCanvas.height - drawHeight) / 2;
+                }
+                
+                displayCtx.drawImage(video, startX, startY, drawWidth, drawHeight);
+
+                // 2. Extrai um frame em baixa resolução para processamento rápido
+                processCtx.drawImage(video, 0, 0, CONFIG.processWidth, CONFIG.processHeight);
+                const imageData = processCtx.getImageData(0, 0, CONFIG.processWidth, CONFIG.processHeight);
+
+                // 3. Processamento de Imagem
+                if (!STATE.isCapturing) {
+                    const dots = detectBlueDots(imageData);
+                    const pattern = findPatterns(dots);
+
+                    // Escala para desenhar a interface de alvo na tela original
+                    const scaleX = drawWidth / CONFIG.processWidth;
+                    const scaleY = drawHeight / CONFIG.processHeight;
+
+                    // Desenha HUD nos pontos encontrados
+                    dots.forEach(dot => {
+                        const finalX = startX + (dot.x * scaleX);
+                        const finalY = startY + (dot.y * scaleY);
+                        
+                        displayCtx.beginPath();
+                        displayCtx.arc(finalX, finalY, dot.radius * scaleX, 0, 2 * Math.PI);
+                        displayCtx.lineWidth = 2;
+                        displayCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+                        displayCtx.stroke();
+                    });
+
+                    // Lógica de Captura
+                    if (pattern) {
+                        STATE.stableFrames++;
+                        statusText.innerText = `Traçando padrão de ${pattern.type}...`;
+                        statusText.className = "text-xs text-yellow-400 hud-text";
+
+                        // Desenha as linhas conectando o padrão
+                        displayCtx.beginPath();
+                        pattern.dots.forEach((dot, index) => {
+                            const finalX = startX + (dot.x * scaleX);
+                            const finalY = startY + (dot.y * scaleY);
+                            if (index === 0) displayCtx.moveTo(finalX, finalY);
+                            else displayCtx.lineTo(finalX, finalY);
+                            
+                            // Caixa de alvo
+                            displayCtx.strokeRect(finalX - 15, finalY - 15, 30, 30);
+                        });
+                        displayCtx.closePath();
+                        
+                        // Cor baseada no tipo
+                        if(pattern.type === 3) displayCtx.strokeStyle = '#3b82f6'; // Azul
+                        if(pattern.type === 4) displayCtx.strokeStyle = '#a855f7'; // Roxo
+                        if(pattern.type === 6) displayCtx.strokeStyle = '#ec4899'; // Rosa
+                        
+                        displayCtx.lineWidth = 3;
+                        displayCtx.stroke();
+
+                        if (STATE.stableFrames >= CONFIG.framesToCapture) {
+                            capturePattern(pattern.type);
+                        }
+                    } else {
+                        STATE.stableFrames = 0;
+                        statusText.innerText = "Buscando Padrões...";
+                        statusText.className = "text-xs text-green-300 hud-text";
+                    }
+                }
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Ação de Capturar o Padrão
+        function capturePattern(type) {
+            STATE.isCapturing = true;
+            STATE.inventory[type]++;
+            
+            // Atualiza Inventário Visual
+            document.getElementById(`count-${type}`).innerText = STATE.inventory[type];
+            document.getElementById('count-'+type).parentElement.classList.add('animate-pulse');
+            setTimeout(() => document.getElementById('count-'+type).parentElement.classList.remove('animate-pulse'), 1000);
+
+            // Tenta vibrar o celular (Feedback tátil premium)
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100, 50, 200]);
+            }
+
+            // Animação de Flash da Câmera
+            const flash = document.getElementById('flash');
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 150);
+
+            // Mostra o Alerta
+            const alertBox = document.getElementById('capture-alert');
+            const alertText = document.getElementById('capture-type');
+            alertText.innerText = `Padrão de ${type} Pontos`;
+            
+            if(type === 3) alertText.className = "text-lg font-bold text-blue-400";
+            if(type === 4) alertText.className = "text-lg font-bold text-purple-400";
+            if(type === 6) alertText.className = "text-lg font-bold text-pink-400";
+
+            alertBox.classList.remove('hidden');
+
+            // Cooldown antes de buscar novamente
+            setTimeout(() => {
+                alertBox.classList.add('hidden');
+                STATE.isCapturing = false;
+                STATE.stableFrames = 0;
+            }, CONFIG.cooldownMs);
+        }
+
+        // Inicia a aplicação
+        startCamera();
     </script>
 </body>
 </html>
