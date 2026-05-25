@@ -3,422 +3,429 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Caçador de Formas AR</title>
+    <title>GeoHunter AR</title>
     <!-- Tailwind CSS para estilização rápida e responsiva -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111; color: white; touch-action: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        
-        /* O vídeo fica escondido, usamos apenas para captar a imagem */
-        #videoElement { display: none; }
-        
-        /* O canvas é onde desenhamos o vídeo com os gráficos do OpenCV por cima */
-        #canvasOutput {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-            z-index: 10;
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        /* Interface do Usuário (HUD) que fica por cima do vídeo */
-        #ui-layer {
+        /* Container do vídeo e canvas para manter a proporção da câmera */
+        #camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 2;
+        }
+
+        /* Interface HUD (Heads Up Display) sobreposta */
+        #hud {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 20;
-            pointer-events: none; /* Deixa os cliques passarem para botões específicos */
+            z-index: 10;
+            pointer-events: none; /* Deixa os cliques passarem para os botões específicos */
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            padding: 20px;
         }
 
-        /* Retícula (mira no centro da tela) */
-        .crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 200px;
-            height: 200px;
-            border: 2px dashed rgba(255, 255, 255, 0.5);
-            border-radius: 20px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.3);
-        }
-        .crosshair::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 10px; height: 10px;
-            background: rgba(255,0,0,0.5);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        /* Botão de captura animado */
-        .catch-btn {
+        /* Botão de Captura com pulso animado quando habilitado */
+        .btn-capture {
             pointer-events: auto;
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #ff4b4b 50%, #cc0000 100%);
-            border: 4px solid white;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 0.8rem;
+            transition: all 0.3s ease;
         }
-        .catch-btn:active { transform: scale(0.9); }
-
-        .glass-panel {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        
+        .btn-capture.ready {
+            background-color: #10b981; /* bg-emerald-500 */
+            box-shadow: 0 0 20px #10b981;
+            transform: scale(1.1);
+            animation: pulse-green 1.5s infinite;
         }
 
-        /* Notificação flutuante */
-        #notification {
+        .btn-capture.disabled {
+            background-color: #6b7280; /* bg-gray-500 */
+            opacity: 0.7;
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Tela de loading imersiva */
+        #loading-screen {
             position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(76, 175, 80, 0.9);
-            padding: 10px 20px;
-            border-radius: 30px;
-            font-weight: bold;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
             z-index: 50;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .loader-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #38bdf8;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Animação de sucesso na captura */
+        #flash {
+            position: absolute;
+            top:0; left:0; width: 100%; height: 100%;
+            background: white;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease-out;
         }
     </style>
 </head>
 <body>
 
-    <!-- Tela de Carregamento -->
-    <div id="loading" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900">
-        <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <h1 class="text-2xl font-bold text-white mb-2">Caçador de Formas</h1>
-        <p id="loading-text" class="text-gray-400 text-center px-4">Carregando IA de Visão Computacional (OpenCV)...<br><small>Isso pode levar alguns segundos na primeira vez.</small></p>
+    <!-- Tela de Carregamento (OpenCV é um pouco pesado) -->
+    <div id="loading-screen">
+        <div class="loader-spinner mb-4"></div>
+        <h1 class="text-3xl font-bold mb-2 tracking-wider">GeoHunter AR</h1>
+        <p class="text-sky-300 text-sm">Carregando IA Visual e Câmera...</p>
+        <p class="text-xs text-gray-400 mt-8 max-w-xs text-center">Permita o acesso à câmera quando solicitado para começar a caçada.</p>
     </div>
 
-    <!-- Elementos Multimídia -->
-    <video id="videoElement" playsinline autoplay muted></video>
-    <canvas id="canvasOutput"></canvas>
+    <!-- Container da Câmera e Canvas AR -->
+    <div id="camera-container">
+        <!-- O vídeo fica oculto visualmente, serve apenas como fonte de dados -->
+        <video id="videoElement" autoplay playsinline></video>
+        <!-- O canvas é onde desenhamos o frame do vídeo + os gráficos AR -->
+        <canvas id="canvasOutput"></canvas>
+    </div>
 
-    <!-- Notificação central -->
-    <div id="notification">Capturado!</div>
+    <!-- Efeito visual de captura -->
+    <div id="flash"></div>
 
-    <!-- Interface do Jogo (HUD) -->
-    <div id="ui-layer" class="hidden">
-        
-        <!-- Topo: Inventário e Status -->
-        <div class="p-4 flex justify-between items-start">
-            <div class="glass-panel rounded-xl p-3">
-                <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider mb-2">Sua Mochila</h2>
-                <div class="flex gap-4">
-                    <div class="flex flex-col items-center">
-                        <div class="w-6 h-6 bg-red-500 clip-triangle mb-1" style="clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></div>
-                        <span id="count-triangulo" class="font-bold">0</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <div class="w-6 h-6 bg-blue-500 mb-1"></div>
-                        <span id="count-quadrado" class="font-bold">0</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <div class="w-8 h-5 bg-purple-500 mb-1 mt-1"></div>
-                        <span id="count-retangulo" class="font-bold">0</span>
-                    </div>
+    <!-- HUD do Jogo -->
+    <div id="hud" class="hidden">
+        <!-- Barra Superior: Missão e Score -->
+        <div class="flex justify-between items-start">
+            <div class="bg-slate-900/80 backdrop-blur-md text-white p-3 rounded-2xl border border-slate-700 shadow-lg">
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-widest mb-1">Missão Atual</p>
+                <div class="flex items-center gap-2">
+                    <i id="mission-icon" class="fa-solid fa-shapes text-sky-400 text-xl"></i>
+                    <span id="mission-text" class="text-lg font-bold">Encontre um Triângulo</span>
                 </div>
             </div>
-            
-            <div class="glass-panel rounded-xl p-2 text-xs flex flex-col items-end">
-                <span id="fps-counter" class="text-green-400 font-mono">FPS: --</span>
-                <span class="text-gray-400 mt-1">Detectando: <span id="current-detect-status" class="text-white">Nenhum</span></span>
+
+            <div class="bg-slate-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-slate-700 shadow-lg flex items-center gap-2">
+                <i class="fa-solid fa-star text-yellow-400"></i>
+                <span id="score-text" class="font-bold text-xl">0</span>
             </div>
         </div>
 
-        <!-- Centro: Mira -->
-        <div class="crosshair"></div>
+        <!-- Feedback de alinhamento -->
+        <div class="flex justify-center">
+            <div id="target-feedback" class="bg-black/50 text-white px-4 py-1 rounded-full text-sm font-medium tracking-wide transition-opacity opacity-0">
+                Alvo Localizado!
+            </div>
+        </div>
 
-        <!-- Base: Controles -->
-        <div class="p-6 flex justify-center pb-10">
-            <button id="catchBtn" class="catch-btn text-white shadow-xl shadow-red-900/50 focus:outline-none">
-                Pegar!
+        <!-- Barra Inferior: Botão de Captura -->
+        <div class="flex justify-center pb-6">
+            <button id="capture-btn" class="btn-capture disabled w-20 h-20 rounded-full text-white flex items-center justify-center text-3xl border-4 border-white/20">
+                <i class="fa-solid fa-camera"></i>
             </button>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script>
-        // Variáveis Globais de Estado
-        let isCvLoaded = false;
-        let isVideoPlaying = false;
-        let streaming = false;
-        
-        // Memória do OpenCV
-        let src, gray, blur, edges, contours, hierarchy;
-        let cap;
-        
-        // Estado do Jogo
-        let inventory = { "Triângulo": 0, "Quadrado": 0, "Retângulo": 0, "Polígono": 0 };
-        let currentlyDetectedShapes = [];
-        let lastDetectionTime = 0; // Novo: Para evitar falhas quando a deteção "pisca"
-        let lastTime = Date.now();
-        let frames = 0;
+    <!-- Carregando OpenCV.js de forma assíncrona -->
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
 
+    <script>
+        // --- Estado do Jogo ---
+        const shapes = [
+            { name: "Triângulo", id: "triangle", icon: "fa-caret-up" },
+            { name: "Quadrado", id: "square", icon: "fa-square" },
+            { name: "Círculo", id: "circle", icon: "fa-circle" }
+        ];
+        
+        let currentMission = null;
+        let score = 0;
+        let isTargetInSight = false;
+        let isProcessing = false;
+        
         // Elementos DOM
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('canvasOutput');
-        const uiLayer = document.getElementById('ui-layer');
-        const loading = document.getElementById('loading');
-        const loadingText = document.getElementById('loading-text');
-        const catchBtn = document.getElementById('catchBtn');
-        const notification = document.getElementById('notification');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const captureBtn = document.getElementById('capture-btn');
+        const targetFeedback = document.getElementById('target-feedback');
+        const flash = document.getElementById('flash');
 
-        // Função chamada quando a página carrega
-        window.onload = function() {
-            // Inicia o carregamento assíncrono do OpenCV.js
-            const script = document.createElement('script');
-            script.src = "https://docs.opencv.org/4.8.0/opencv.js";
-            script.async = true;
-            script.onload = () => {
-                // O script carregou, mas a WASM interna do OpenCV pode demorar mais um pouco
-                checkOpenCVReady();
-            };
-            script.onerror = () => {
-                loadingText.innerHTML = "Erro ao carregar OpenCV. Verifique sua conexão.";
-            };
-            document.body.appendChild(script);
-        };
+        // Referências do OpenCV (serão inicializadas depois)
+        let srcMat, dstMat, cap;
+        const FPS = 30; // Limitar processamento para economizar bateria
 
-        function checkOpenCVReady() {
-            if (typeof cv !== 'undefined' && cv.Mat) {
-                isCvLoaded = true;
-                loadingText.innerText = "Acessando Câmera...";
-                initCamera();
-            } else {
-                setTimeout(checkOpenCVReady, 100);
+        // --- Inicialização ---
+
+        // Função chamada quando o script do OpenCV é carregado via CDN
+        function onOpenCvReady() {
+            // Garante que o WebAssembly interno do OpenCV esteja pronto
+            cv['onRuntimeInitialized'] = () => {
+                console.log('OpenCV.js is ready.');
+                startCamera();
+            };
+        }
+
+        async function startCamera() {
+            try {
+                // Solicita câmera traseira
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 640 }, // Resolução menor melhora a performance de IA mobile
+                        height: { ideal: 480 } 
+                    }, 
+                    audio: false 
+                });
+                
+                video.srcObject = stream;
+                
+                // Quando o vídeo começar a tocar, inicializa os Mats do OpenCV e o loop de jogo
+                video.addEventListener('loadeddata', () => {
+                    initGame();
+                });
+
+            } catch (err) {
+                console.error("Erro ao acessar câmera: ", err);
+                alert("Erro ao acessar a câmera. Por favor, permita o acesso nas configurações do navegador para jogar.");
             }
         }
 
-        // Inicia a câmera do dispositivo (preferencialmente a traseira)
-        function initCamera() {
-            const constraints = {
-                video: { 
-                    facingMode: "environment", // Tenta forçar a câmera traseira
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                },
-                audio: false
-            };
+        function initGame() {
+            // Ajusta o tamanho do canvas para o tamanho real do vídeo renderizado
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
 
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(function(stream) {
-                    video.srcObject = stream;
-                    video.play();
-                })
-                .catch(function(err) {
-                    console.error("Erro ao acessar câmera: ", err);
-                    loadingText.innerHTML = "Erro ao acessar a câmera.<br>Por favor, dê permissão.";
-                });
-
-            // Aguarda o vídeo começar a tocar para configurar o tamanho do Canvas
-            video.addEventListener('canplay', function() {
-                if (!isVideoPlaying) {
-                    isVideoPlaying = true;
-                    // Define dimensões reais
-                    video.width = video.videoWidth;
-                    video.height = video.videoHeight;
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    
-                    // Prepara OpenCV e inicia o loop
-                    initOpenCVMemory();
-                    loading.classList.add('hidden');
-                    uiLayer.classList.remove('hidden');
-                    streaming = true;
-                    requestAnimationFrame(processVideo);
-                }
-            });
-        }
-
-        function initOpenCVMemory() {
-            src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
-            gray = new cv.Mat();
-            blur = new cv.Mat();
-            edges = new cv.Mat();
-            contours = new cv.MatVector();
-            hierarchy = new cv.Mat();
+            // Inicializa matrizes do OpenCV
+            srcMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+            dstMat = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC1);
             cap = new cv.VideoCapture(video);
+
+            // Esconde tela de loading e mostra HUD
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('hud').classList.add('flex');
+
+            setNewMission();
+            
+            // Inicia o loop de processamento
+            isProcessing = true;
+            setTimeout(processVideo, 0);
         }
 
-        // Loop principal de processamento de imagem
+        // --- Lógica do Jogo ---
+
+        function setNewMission() {
+            // Escolhe uma forma aleatória, diferente da atual se possível
+            let newShape;
+            do {
+                newShape = shapes[Math.floor(Math.random() * shapes.length)];
+            } while (currentMission && newShape.id === currentMission.id);
+            
+            currentMission = newShape;
+            
+            // Atualiza UI
+            document.getElementById('mission-text').innerText = `Encontre um ${currentMission.name}`;
+            document.getElementById('mission-icon').className = `fa-solid ${currentMission.icon} text-sky-400 text-xl`;
+            
+            updateCaptureState(false);
+        }
+
+        function updateCaptureState(ready) {
+            isTargetInSight = ready;
+            if (ready) {
+                captureBtn.classList.remove('disabled');
+                captureBtn.classList.add('ready');
+                targetFeedback.style.opacity = '1';
+            } else {
+                captureBtn.classList.add('disabled');
+                captureBtn.classList.remove('ready');
+                targetFeedback.style.opacity = '0';
+            }
+        }
+
+        captureBtn.addEventListener('click', () => {
+            if (isTargetInSight) {
+                // Sucesso na captura
+                score += 10;
+                document.getElementById('score-text').innerText = score;
+                
+                // Efeito de Flash
+                flash.style.opacity = '1';
+                setTimeout(() => { flash.style.opacity = '0'; }, 100);
+                
+                // Nova missão
+                setNewMission();
+            }
+        });
+
+        // --- Motor de Visão Computacional ---
+
         function processVideo() {
-            if (!streaming) return;
+            if (!isProcessing) return;
+
+            let begin = Date.now();
 
             try {
-                // Lê o quadro atual da câmera
-                cap.read(src);
+                // Lê o frame atual do vídeo para a matriz de origem
+                cap.read(srcMat);
+
+                // Variável para checar se achamos a forma da missão neste frame
+                let foundMissionShape = false;
 
                 // 1. Converte para Tons de Cinza
-                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-                
-                // 2. Desfoca levemente para reduzir ruído (sujeira na imagem)
-                cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-                
-                // 3. Detecta bordas (Algoritmo Canny - Ajustado para ser mais tolerante)
-                cv.Canny(blur, edges, 30, 100, 3, false);
-                
-                // 4. Encontra contornos contínuos nas bordas
-                cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                cv.cvtColor(srcMat, dstMat, cv.COLOR_RGBA2GRAY, 0);
 
-                let tempDetected = [];
+                // 2. Aplica Desfoque (Blur) para reduzir ruídos da câmera mobile
+                let ksize = new cv.Size(5, 5);
+                cv.GaussianBlur(dstMat, dstMat, ksize, 0, 0, cv.BORDER_DEFAULT);
+
+                // 3. Detecção de Bordas (Canny)
+                cv.Canny(dstMat, dstMat, 50, 150, 3, false);
+
+                // 4. Encontra Contornos
+                let contours = new cv.MatVector();
+                let hierarchy = new cv.Mat();
+                cv.findContours(dstMat, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+                // Prepara para desenhar no canvas (copiamos o frame original)
+                cv.imshow('canvasOutput', srcMat);
 
                 // 5. Analisa cada contorno encontrado
                 for (let i = 0; i < contours.size(); ++i) {
                     let cnt = contours.get(i);
                     let area = cv.contourArea(cnt);
-                    
-                    // Filtra formas muito pequenas (ruído) ou enormes (a tela inteira)
-                    if (area > 1500 && area < (video.width * video.height * 0.8)) {
-                        let perimeter = cv.arcLength(cnt, true);
-                        let approx = new cv.Mat();
+
+                    // Ignora contornos muito pequenos (ruído) ou muito grandes (borda da tela)
+                    if (area > 2000 && area < (canvas.width * canvas.height * 0.8)) {
                         
-                        // Tenta aproximar o contorno redondo/irregular para um polígono de retas
-                        cv.approxPolyDP(cnt, approx, 0.04 * perimeter, true);
+                        let tmp = new cv.Mat();
+                        let perimeter = cv.arcLength(cnt, true);
+                        
+                        // Aproxima o contorno a um polígono
+                        // O fator 0.04 define a precisão da aproximação geométrica
+                        cv.approxPolyDP(cnt, tmp, 0.04 * perimeter, true);
+                        
+                        let vertices = tmp.rows;
+                        let detectedShape = null;
 
-                        let vertices = approx.rows;
-                        let shapeName = "";
-                        let color;
-
-                        // Classifica a forma baseada no número de vértices (cantos)
+                        // Classificação baseada no número de vértices
                         if (vertices === 3) {
-                            shapeName = "Triângulo";
-                            color = new cv.Scalar(255, 0, 0, 255); // Vermelho no OpenCV (BGR)
+                            detectedShape = "triangle";
                         } else if (vertices === 4) {
-                            // É 4 lados. Mas é quadrado ou retângulo?
-                            let rect = cv.boundingRect(approx);
-                            let aspectRatio = rect.width / rect.height;
-                            if (aspectRatio >= 0.85 && aspectRatio <= 1.15) {
-                                shapeName = "Quadrado";
-                                color = new cv.Scalar(0, 200, 255, 255); // Amarelo
-                            } else {
-                                shapeName = "Retângulo";
-                                color = new cv.Scalar(255, 0, 255, 255); // Roxo
+                            // Poderíamos calcular o aspect ratio para diferenciar quadrado de retângulo
+                            detectedShape = "square"; 
+                        } else if (vertices > 7) {
+                            // Polígonos com muitos vértices se aproximam de um círculo
+                            // Idealmente checaríamos a circularidade: 4*pi*area / (perimeter^2)
+                            let circularity = (4 * Math.PI * area) / (perimeter * perimeter);
+                            if (circularity > 0.7) {
+                                detectedShape = "circle";
                             }
                         }
 
-                        if (shapeName !== "") {
-                            tempDetected.push(shapeName);
+                        // Se identificamos uma forma válida, desenhamos o AR overlay
+                        if (detectedShape) {
+                            // Verifica se é a forma que estamos caçando
+                            let isMissionTarget = (currentMission && currentMission.id === detectedShape);
+                            if (isMissionTarget) foundMissionShape = true;
+
+                            // Define cor: Verde para alvo correto, Vermelho/Rosa para outros
+                            let color = isMissionTarget ? new cv.Scalar(16, 185, 129, 255) : new cv.Scalar(236, 72, 153, 255);
                             
-                            // Desenha o contorno detectado na tela
-                            let tmpContours = new cv.MatVector();
-                            tmpContours.push(approx);
-                            cv.drawContours(src, tmpContours, 0, color, 3, cv.LINE_8, hierarchy, 0);
+                            // Desenha o contorno aproximado
+                            let polyArray = new cv.MatVector();
+                            polyArray.push_back(tmp);
+                            cv.drawContours(srcMat, polyArray, 0, color, 3, cv.LINE_8, hierarchy, 0);
+                            polyArray.delete();
+
+                            // Calcula o centro para colocar a label
+                            let rect = cv.boundingRect(cnt);
+                            let point = new cv.Point(rect.x, rect.y - 10);
                             
-                            // Escreve o nome da forma
-                            let moments = cv.moments(cnt, false);
-                            let cx = moments.m10 / moments.m00;
-                            let cy = moments.m01 / moments.m00;
-                            cv.putText(src, shapeName, new cv.Point(cx - 30, cy), cv.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv.LINE_AA);
-                            
-                            tmpContours.delete();
+                            // Nome em português para display
+                            let displayName = shapes.find(s => s.id === detectedShape)?.name || "";
+                            cv.putText(srcMat, displayName, point, cv.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv.LINE_AA);
                         }
-                        approx.delete();
+                        tmp.delete();
                     }
-                    cnt.delete(); // Previne vazamento de memória
+                    cnt.delete();
                 }
 
-                // Atualiza estado global com um pequeno "período de tolerância"
-                if (tempDetected.length > 0) {
-                    currentlyDetectedShapes = tempDetected;
-                    lastDetectionTime = Date.now();
-                    document.getElementById('current-detect-status').innerText = tempDetected.join(", ");
-                } else if (Date.now() - lastDetectionTime > 500) {
-                    // Só esvazia se passar 500ms sem detetar nada (evita o piscar)
-                    currentlyDetectedShapes = [];
-                    document.getElementById('current-detect-status').innerText = "Nenhum";
+                contours.delete(); hierarchy.delete();
+
+                // Atualiza o frame com os desenhos no Canvas HTML
+                cv.imshow('canvasOutput', srcMat);
+
+                // Atualiza o estado da UI baseado no que vimos neste frame
+                if (foundMissionShape !== isTargetInSight) {
+                    updateCaptureState(foundMissionShape);
                 }
-
-                // Mostra a imagem processada no Canvas HTML
-                cv.imshow('canvasOutput', src);
-
-                // Cálculo de FPS
-                frames++;
-                let now = Date.now();
-                if (now - lastTime >= 1000) {
-                    document.getElementById('fps-counter').innerText = `FPS: ${frames}`;
-                    frames = 0;
-                    lastTime = now;
-                }
-
-                // Solicita próximo frame ao navegador
-                requestAnimationFrame(processVideo);
 
             } catch (err) {
-                console.error("Erro no processamento do vídeo: ", err);
-                // Continua tentando mesmo se um frame falhar
-                requestAnimationFrame(processVideo);
+                console.error("Erro no processamento do frame: ", err);
             }
+
+            // Agenda o próximo frame considerando o limite de FPS
+            let delay = 1000/FPS - (Date.now() - begin);
+            setTimeout(processVideo, delay > 0 ? delay : 0);
         }
 
-        // Lógica de Captura (O Botão "Pegar!")
-        catchBtn.addEventListener('click', () => {
-            if (currentlyDetectedShapes.length > 0) {
-                // Adiciona ao inventário
-                let captureText = [];
-                currentlyDetectedShapes.forEach(shape => {
-                    if (inventory[shape] !== undefined) {
-                        inventory[shape]++;
-                        captureText.push(shape);
-                    }
-                });
-
-                // Atualiza UI da mochila
-                document.getElementById('count-triangulo').innerText = inventory["Triângulo"];
-                document.getElementById('count-quadrado').innerText = inventory["Quadrado"];
-                document.getElementById('count-retangulo').innerText = inventory["Retângulo"];
-
-                // Mostra notificação de sucesso
-                showNotification(`Pegou: ${captureText.join(", ")}!`, "rgba(76, 175, 80, 0.9)");
-                
-                // Feedback visual e tátil (vibração se o celular suportar)
-                if (navigator.vibrate) navigator.vibrate(100);
-                
-            } else {
-                // Errou
-                showNotification("A mira está vazia...", "rgba(244, 67, 54, 0.9)");
-            }
+        // Limpeza quando a página for fechada
+        window.addEventListener('beforeunload', () => {
+            isProcessing = false;
+            if (srcMat) srcMat.delete();
+            if (dstMat) dstMat.delete();
         });
-
-        function showNotification(text, bgColor) {
-            notification.innerText = text;
-            notification.style.background = bgColor;
-            notification.style.opacity = '1';
-            
-            setTimeout(() => {
-                notification.style.opacity = '0';
-            }, 1500);
-        }
-
-        // Limpeza de memória se o usuário fechar a página
-        window.onunload = function() {
-            if (src) src.delete();
-            if (gray) gray.delete();
-            if (blur) blur.delete();
-            if (edges) edges.delete();
-            if (contours) contours.delete();
-            if (hierarchy) hierarchy.delete();
-        };
 
     </script>
 </body>
