@@ -171,6 +171,7 @@
         // Estado do Jogo
         let inventory = { "Triângulo": 0, "Quadrado": 0, "Retângulo": 0, "Polígono": 0 };
         let currentlyDetectedShapes = [];
+        let lastDetectionTime = 0; // Novo: Para evitar falhas quando a deteção "pisca"
         let lastTime = Date.now();
         let frames = 0;
 
@@ -274,8 +275,8 @@
                 // 2. Desfoca levemente para reduzir ruído (sujeira na imagem)
                 cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
                 
-                // 3. Detecta bordas (Algoritmo Canny)
-                cv.Canny(blur, edges, 50, 150, 3, false);
+                // 3. Detecta bordas (Algoritmo Canny - Ajustado para ser mais tolerante)
+                cv.Canny(blur, edges, 30, 100, 3, false);
                 
                 // 4. Encontra contornos contínuos nas bordas
                 cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
@@ -337,9 +338,16 @@
                     cnt.delete(); // Previne vazamento de memória
                 }
 
-                // Atualiza estado global
-                currentlyDetectedShapes = tempDetected;
-                document.getElementById('current-detect-status').innerText = tempDetected.length > 0 ? tempDetected.join(", ") : "Nenhum";
+                // Atualiza estado global com um pequeno "período de tolerância"
+                if (tempDetected.length > 0) {
+                    currentlyDetectedShapes = tempDetected;
+                    lastDetectionTime = Date.now();
+                    document.getElementById('current-detect-status').innerText = tempDetected.join(", ");
+                } else if (Date.now() - lastDetectionTime > 500) {
+                    // Só esvazia se passar 500ms sem detetar nada (evita o piscar)
+                    currentlyDetectedShapes = [];
+                    document.getElementById('current-detect-status').innerText = "Nenhum";
+                }
 
                 // Mostra a imagem processada no Canvas HTML
                 cv.imshow('canvasOutput', src);
