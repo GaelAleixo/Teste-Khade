@@ -147,23 +147,23 @@
     <div id="hud" class="hidden">
         <!-- Barra Superior: Missão e Score -->
         <div class="flex justify-between items-start">
-            <div class="bg-slate-900/80 backdrop-blur-md text-white p-3 rounded-2xl border border-slate-700 shadow-lg">
-                <p class="text-xs text-slate-400 uppercase font-bold tracking-widest mb-1">Missão Atual</p>
+            <!-- Seletor de Missão (Alvo) -->
+            <div class="bg-slate-900/80 backdrop-blur-md text-white p-2 rounded-2xl border border-slate-700 shadow-lg pointer-events-auto">
+                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1 text-center">Escolher Alvo</p>
                 <div class="flex items-center gap-2">
-                    <i id="mission-icon" class="fa-solid fa-shapes text-sky-400 text-xl"></i>
-                    <span id="mission-text" class="text-lg font-bold">Encontre um Triângulo</span>
+                    <button id="btn-triangle" onclick="selectMission('triangle')" class="mission-btn p-2 rounded-xl border-2 border-sky-400 bg-slate-700 transition-all flex justify-center items-center w-12 h-12 shadow-inner">
+                        <i class="fa-solid fa-caret-up text-sky-400 text-2xl"></i>
+                    </button>
+                    <button id="btn-square" onclick="selectMission('square')" class="mission-btn p-2 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-slate-700 transition-all flex justify-center items-center w-12 h-12">
+                        <i class="fa-solid fa-square text-sky-400 text-xl"></i>
+                    </button>
+                    <button id="btn-circle" onclick="selectMission('circle')" class="mission-btn p-2 rounded-xl border-2 border-transparent bg-slate-800 hover:bg-slate-700 transition-all flex justify-center items-center w-12 h-12">
+                        <i class="fa-solid fa-circle text-sky-400 text-xl"></i>
+                    </button>
                 </div>
             </div>
 
-            <div class="bg-slate-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-slate-700 shadow-lg flex items-center gap-2">
-                <i class="fa-solid fa-star text-yellow-400"></i>
-                <span id="score-text" class="font-bold text-xl">0</span>
-            </div>
-        </div>
-
-        <!-- Feedback de alinhamento -->
-        <div class="flex justify-center">
-            <div id="target-feedback" class="bg-black/50 text-white px-4 py-1 rounded-full text-sm font-medium tracking-wide transition-opacity opacity-0">
+            <div class="bg-slate-900/80 backdrop-blur-md text-white px-4 py-2 rounded-full border border-slate-700 shadow-lg flex items-center gap-2 pointer-events-auto">
                 Alvo Localizado!
             </div>
         </div>
@@ -255,7 +255,7 @@
             document.getElementById('hud').classList.remove('hidden');
             document.getElementById('hud').classList.add('flex');
 
-            setNewMission();
+            selectMission('triangle'); // Inicia com triângulo selecionado
             
             // Inicia o loop de processamento
             isProcessing = true;
@@ -264,19 +264,23 @@
 
         // --- Lógica do Jogo ---
 
-        function setNewMission() {
-            // Escolhe uma forma aleatória, diferente da atual se possível
-            let newShape;
-            do {
-                newShape = shapes[Math.floor(Math.random() * shapes.length)];
-            } while (currentMission && newShape.id === currentMission.id);
+        function selectMission(shapeId) {
+            currentMission = shapes.find(s => s.id === shapeId);
             
-            currentMission = newShape;
+            // Reseta o estilo visual de todos os botões de missão
+            document.querySelectorAll('.mission-btn').forEach(btn => {
+                btn.classList.remove('border-sky-400', 'bg-slate-700', 'shadow-inner');
+                btn.classList.add('border-transparent', 'bg-slate-800');
+            });
             
-            // Atualiza UI
-            document.getElementById('mission-text').innerText = `Encontre um ${currentMission.name}`;
-            document.getElementById('mission-icon').className = `fa-solid ${currentMission.icon} text-sky-400 text-xl`;
+            // Destaca o botão recém selecionado
+            const activeBtn = document.getElementById(`btn-${shapeId}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'bg-slate-800');
+                activeBtn.classList.add('border-sky-400', 'bg-slate-700', 'shadow-inner');
+            }
             
+            // Zera o estado do botão de captura até ele achar a nova forma
             updateCaptureState(false);
         }
 
@@ -303,8 +307,9 @@
                 flash.style.opacity = '1';
                 setTimeout(() => { flash.style.opacity = '0'; }, 100);
                 
-                // Nova missão
-                setNewMission();
+                // Na versão manual, a missão continua a mesma após a captura, 
+                // apenas resetamos o estado visual do botão de captura
+                updateCaptureState(false);
             }
         });
 
