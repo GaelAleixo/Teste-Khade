@@ -184,15 +184,14 @@
             const frameData = ctx.getImageData(0, 0, w, h);
             const data = frameData.data;
 
-            // 2.5 OCULTA A IMAGEM REAL: Pinta o fundo de preto para simular ambiente escuro
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, w, h);
+            // 2.5 APLICA O BLUR CINZA: Redesenha o frame com filtro para o usuário ver o ambiente
+            ctx.filter = 'grayscale(100%) blur(12px)';
+            ctx.drawImage(videoElement, 0, 0, w, h);
+            ctx.filter = 'none'; // Reseta o filtro para não borrar as etiquetas neon
             
-            // Efeito opcional: Grade sutil de "Radar" ao fundo
-            ctx.strokeStyle = '#111111';
-            ctx.lineWidth = 1;
-            for(let i = 0; i < w; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
-            for(let i = 0; i < h; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
+            // Uma leve camada escura (30%) por cima para melhorar o contraste luminoso
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, w, h);
 
             // Configurações do Algoritmo
             const step = 4; // Analisa 1 pixel a cada 4 (aumenta a performance drasticamente no celular)
