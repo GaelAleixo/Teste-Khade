@@ -184,6 +184,16 @@
             const frameData = ctx.getImageData(0, 0, w, h);
             const data = frameData.data;
 
+            // 2.5 OCULTA A IMAGEM REAL: Pinta o fundo de preto para simular ambiente escuro
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, w, h);
+            
+            // Efeito opcional: Grade sutil de "Radar" ao fundo
+            ctx.strokeStyle = '#111111';
+            ctx.lineWidth = 1;
+            for(let i = 0; i < w; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+            for(let i = 0; i < h; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
+
             // Configurações do Algoritmo
             const step = 4; // Analisa 1 pixel a cada 4 (aumenta a performance drasticamente no celular)
             let bluePixels = [];
@@ -245,15 +255,16 @@
             // Filtrar ruídos: Bolinhas precisam ter uma quantidade mínima de pixels detectados
             dots = dots.filter(d => d.count > 4);
 
-            // Opcional: Desenhar as bolinhas detectadas (bom para debug visual do MVP)
-            /*
-            ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
+            // 4.5 Renderizar as bolinhas como "Etiquetas Reflexivas" que brilham no escuro
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00ffff'; // Brilho ciano neon
+            ctx.fillStyle = '#ffffff';   // Centro super brilhante
             for(let d of dots) {
                 ctx.beginPath();
-                ctx.arc(d.cx, d.cy, 5, 0, 2*Math.PI);
+                ctx.arc(d.cx, d.cy, 6, 0, 2*Math.PI);
                 ctx.fill();
             }
-            */
+            ctx.shadowBlur = 0; // Resetar a sombra para o resto do código
 
             // 5. Agrupar "Bolinhas" em "Padrões" (Objetos)
             let patterns = [];
@@ -312,12 +323,15 @@
                     const bw = (p.maxX - p.minX) + (padding * 2);
                     const bh = (p.maxY - p.minY) + (padding * 2);
 
-                    // Desenhar Bounding Box estilo AR
-                    ctx.strokeStyle = objectInfo.color;
-                    ctx.lineWidth = 4;
+                    // Desenhar Bounding Box estilo AR (Néon Reflexivo)
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = objectInfo.color;
+                    ctx.strokeStyle = '#ffffff'; // Linha branca para destacar o brilho da sombra
+                    ctx.lineWidth = 3;
                     ctx.setLineDash([10, 10]); // Linha tracejada
                     ctx.strokeRect(bx, by, bw, bh);
                     ctx.setLineDash([]); // Reset
+                    ctx.shadowBlur = 0; // Reset
 
                     // Desenhar Fundo do Texto
                     ctx.fillStyle = objectInfo.color;
